@@ -1239,7 +1239,12 @@ def render_step_4():
             
             col1, col2 = st.columns([0.1, 0.9])
             with col1:
-                if st.checkbox("", value=is_selected, key=f"quote_{i}"):
+                if st.checkbox(
+                    label=f"Select quote {i+1}",
+                    value=is_selected,
+                    key=f"quote_{i}",
+                    label_visibility="collapsed"
+                ):
                     if quote_text not in st.session_state.selected_quotes:
                         st.session_state.selected_quotes.append(quote_text)
                 else:
@@ -1479,17 +1484,17 @@ def render_step_5():
                         status.write("Calling OpenAI...")
                         new_content = generate_draft(client, regen_context)
                         status.write("Draft received.")
-                        new_draft = {
-                            'version': len(st.session_state.drafts) + 1,
-                            'content': new_content,
-                            'content_type': ctype,
-                            'platform': regen_context['platform'],
-                            'timestamp': datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-                            'approved': False,
-                            'edits': [{'timestamp': datetime.now().strftime("%Y-%m-%d %H:%M:%S"), 'type': 'regen_with_feedback'}]
-                        }
-                        st.session_state.drafts.append(new_draft)
-                        st.session_state.current_draft_index_by_type[ctype] = len([d for d in st.session_state.drafts if d.get('content_type') == ctype]) - 1
+                        # Overwrite the currently selected draft (respect the version user is viewing)
+                        for idx, d in enumerate(st.session_state.drafts):
+                            if d is current_draft:
+                                st.session_state.drafts[idx]['content'] = new_content
+                                st.session_state.drafts[idx]['timestamp'] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                                st.session_state.drafts[idx]['approved'] = False
+                                st.session_state.drafts[idx].setdefault('edits', []).append({
+                                    'timestamp': datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                                    'type': 'regen_with_feedback'
+                                })
+                                break
                         status.update(label="Regeneration complete", state="complete", expanded=False)
                     st.rerun()
 
