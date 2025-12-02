@@ -262,10 +262,11 @@ AUDIENCE_PROFILE = """- Executives in 4-50 person businesses
 - US-based"""
 
 # Model routing (use broadly available aliases first)
-MODEL_GENERATE = "gpt-4.1-nano"
-MODEL_QUOTE = "gpt-4.1-nano"
-MODEL_FALLBACKS = ["gpt-5"]
-MODEL_TEMP_RESTRICTED = {"gpt-5" }
+MODEL_GENERATE = "gpt-4o-mini"
+MODEL_QUOTE = "gpt-4o-mini"
+MODEL_FALLBACKS = ["gpt-5", "o4-mini-2025-04-16"]
+MODEL_TEMP_RESTRICTED = {"gpt-5", "o4-mini-2025-04-16", "o4-mini"}
+MODEL_OPTIONS = ["gpt-4o-mini", "gpt-4o", "gpt-4.1", "gpt-4.1-nano", "gpt-5", "o4-mini-2025-04-16"]
 
 
 # ============================================================================
@@ -296,6 +297,7 @@ def init_session_state():
         'additional_context': '',
         'openai_force_legacy': False,
         'openai_use_rest': True,  # avoid httpx/proxies issues by default
+        'model_choice': MODEL_GENERATE,
         
         # Step 3: Tone & Brand
         'tone': None,
@@ -422,6 +424,11 @@ def log_debug(message: str):
     st.session_state.debug_logs = st.session_state.debug_logs[-200:]
 
 
+def get_model_choice() -> str:
+    """Return current selected model."""
+    return st.session_state.get('model_choice', MODEL_GENERATE)
+
+
 def get_feedback_notes(content_type: str) -> str:
     """Aggregate feedback chat for a given content type."""
     if 'feedback_chat' not in st.session_state:
@@ -497,7 +504,7 @@ def rest_chat_completion(**kwargs):
         raise RuntimeError("requests not installed. Run: pip install requests")
 
     payload = {
-        "model": kwargs.get("model", MODEL_GENERATE),
+        "model": kwargs.get("model", get_model_choice()),
         "messages": kwargs.get("messages", []),
         "temperature": kwargs.get("temperature", 0.7),
     }
@@ -616,7 +623,7 @@ def extract_quotes_from_text(text: str, client: OpenAI) -> list:
         log_debug("Extracting quotes from text")
         response = chat_completion(
             client,
-            model=MODEL_QUOTE,
+            model=get_model_choice(),
             messages=[
                 {
                     "role": "system",
@@ -738,7 +745,7 @@ def generate_draft(client: OpenAI, context: dict) -> str:
         log_debug(f"Generating draft for {context['content_type']} ({context['platform']}) length={context['content_length']}")
         response = chat_completion(
             client,
-            model=MODEL_GENERATE,
+            model=get_model_choice(),
             messages=[
                 {
                     "role": "system",
@@ -788,7 +795,7 @@ Return the final, publication-ready content."""
         log_debug(f"Finalizing content for {context['content_type']} ({context['platform']})")
         response = chat_completion(
             client,
-            model=MODEL_GENERATE,
+            model=get_model_choice(),
             messages=[
                 {
                     "role": "system",
@@ -867,6 +874,17 @@ def render_sidebar():
         if api_key:
             st.session_state.openai_api_key = api_key
             st.session_state.openai_client = None  # Reset to create new client
+        
+        # Model selector
+        st.markdown("**Model**")
+        model_choice = st.selectbox(
+            "Select OpenAI model",
+            MODEL_OPTIONS,
+            index=MODEL_OPTIONS.index(st.session_state.model_choice) if st.session_state.get('model_choice') in MODEL_OPTIONS else 0,
+            label_visibility="collapsed",
+            help="Used for generation, regeneration, editing, and quote extraction."
+        )
+        st.session_state.model_choice = model_choice
         
         st.markdown("---")
         
